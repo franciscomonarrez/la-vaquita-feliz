@@ -6,7 +6,7 @@ import numpy as np
 st.set_page_config(
     page_title="La Vaquita Feliz 🐮 - Calculadora de Utilidad",
     page_icon="🐮",
-    layout="centered",  # switch to centered for narrower tables
+    layout="centered",
     initial_sidebar_state="expanded",
 )
 
@@ -14,7 +14,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      /* Constrain max width to shrink tables */
+      /* Constrain max width */
       .block-container {
         max-width: 800px !important;
         padding: 0.5rem 1rem !important;
@@ -27,18 +27,14 @@ st.markdown(
       h1, .stHeader h2 {
         text-align: center;
       }
-      /* Smaller metric values and labels */
+      /* Smaller metric text */
       .stMetricValue, .css-1v0mbdj {
         font-size: 1rem !important;
       }
       .stMetricLabel, .css-1avcm0n {
         font-size: 0.8rem !important;
       }
-      /* Smaller expander text */
-      .streamlit-expanderHeader {
-        font-size: 0.9rem !important;
-      }
-      /* Hide default footer */
+      /* Hide footer */
       footer {visibility: hidden;}
     </style>
     """,
@@ -50,54 +46,28 @@ st.sidebar.header("🛠 Ajustes de Costos & Ventas")
 
 # Materia Prima
 st.sidebar.subheader("🔹 Materia Prima")
-carne_fresca = st.sidebar.number_input(
-    "Carne fresca ($)", min_value=0.0, value=52473.06, step=10.0
-)
-sal = st.sidebar.number_input(
-    "Sal ($)", min_value=0.0, value=31.35, step=1.0
-)
+carne_fresca = st.sidebar.number_input("Carne fresca ($)", min_value=0.0, value=52473.06, step=10.0)
+sal          = st.sidebar.number_input("Sal ($)",          min_value=0.0, value=31.35,    step=1.0)
 
 # Mano de Obra
 st.sidebar.subheader("🔹 Mano de Obra")
-sueldo1 = st.sidebar.number_input(
-    "Sueldo principal ($)", min_value=0.0, value=7266.95, step=10.0
-)
-trabajador_adicional = st.sidebar.number_input(
-    "Trabajador adicional ($)", min_value=0.0, value=3000.00, step=10.0
-)
-corte_carne = st.sidebar.number_input(
-    "Costo de corte de carne ($)", min_value=0.0, value=1024.14, step=10.0
-)
+sueldo1              = st.sidebar.number_input("Sueldo principal ($)",         min_value=0.0, value=7266.95, step=10.0)
+trabajador_adicional = st.sidebar.number_input("Trabajador adicional ($)",      min_value=0.0, value=3000.00, step=10.0)
+corte_carne          = st.sidebar.number_input("Costo de corte de carne ($)",   min_value=0.0, value=1024.14, step=10.0)
 
 # Servicios y Gastos Fijos
 st.sidebar.subheader("🔹 Servicios & Fijos")
-luz = st.sidebar.number_input(
-    "Luz mensual ($)", min_value=0.0, value=651.25, step=1.0
-)
-agua = st.sidebar.number_input(
-    "Agua ($)", min_value=0.0, value=145.34, step=1.0
-)
-fumigacion = st.sidebar.number_input(
-    "Fumigación ($)", min_value=0.0, value=726.69, step=1.0
-)
-liquidos_limpieza = st.sidebar.number_input(
-    "Líquidos de limpieza ($)", min_value=0.0, value=297.01, step=1.0
-)
-otro_liquido = st.sidebar.number_input(
-    "Otro líquido de limpieza ($)", min_value=0.0, value=18.35, step=1.0
-)
+luz               = st.sidebar.number_input("Luz mensual ($)",             min_value=0.0, value=651.25, step=1.0)
+agua              = st.sidebar.number_input("Agua ($)",                    min_value=0.0, value=145.34, step=1.0)
+fumigacion        = st.sidebar.number_input("Fumigación ($)",              min_value=0.0, value=726.69, step=1.0)
+liquidos_limpieza = st.sidebar.number_input("Líquidos de limpieza ($)",    min_value=0.0, value=297.01, step=1.0)
+otro_liquido      = st.sidebar.number_input("Otro líquido de limpieza ($)",min_value=0.0, value=18.35,  step=1.0)
 
 # Producción y Ventas
 st.sidebar.subheader("🛒 Producción & Ventas")
-total_unidades = st.sidebar.number_input(
-    "Bolsas producidas", min_value=1, value=453, step=1
-)
-precio_venta = st.sidebar.number_input(
-    "Precio actual por bolsa ($)", min_value=0.0, value=145.18, step=1.0
-)
-precio_venta_sugerido = st.sidebar.number_input(
-    "Precio sugerido por bolsa ($)", min_value=0.0, value=196.00, step=1.0
-)
+total_unidades        = st.sidebar.number_input("Bolsas producidas",            min_value=1,   value=453,   step=1)
+precio_venta          = st.sidebar.number_input("Precio actual por bolsa ($)",  min_value=0.0, value=145.18, step=1.0)
+precio_venta_sugerido = st.sidebar.number_input("Precio sugerido por bolsa ($)",min_value=0.0, value=196.00, step=1.0)
 
 # ----------------- MAIN LAYOUT -----------------
 st.title("🐮 La Vaquita Feliz")
@@ -132,52 +102,53 @@ st.info("**Todos los valores se actualizan en tiempo real.**")
 
 # ----------------- CÁLCULOS -----------------
 costo_unitario_empaque = 2.0
-empaques = total_unidades * costo_unitario_empaque
+empaques               = total_unidades * costo_unitario_empaque
 
-costo_total = (
+costo_total         = (
     carne_fresca + sal + corte_carne +
     sueldo1 + trabajador_adicional +
     luz + agua + fumigacion +
     liquidos_limpieza + otro_liquido +
     empaques
 )
-costo_por_bolsa = costo_total / total_unidades
+costo_por_bolsa     = costo_total / total_unidades
 
-utilidad_por_bolsa = precio_venta - costo_por_bolsa
-utilidad_total = utilidad_por_bolsa * total_unidades
-utilidad_pct = (utilidad_por_bolsa / precio_venta * 100) if precio_venta else 0
+utilidad_por_bolsa  = precio_venta - costo_por_bolsa
+utilidad_total      = utilidad_por_bolsa * total_unidades
+utilidad_pct        = (utilidad_por_bolsa / precio_venta * 100) if precio_venta else 0
 
 utilidad_por_bolsa_sug = precio_venta_sugerido - costo_por_bolsa
-utilidad_total_sug = utilidad_por_bolsa_sug * total_unidades
-utilidad_pct_sug = (utilidad_por_bolsa_sug / precio_venta_sugerido * 100) if precio_venta_sugerido else 0
+utilidad_total_sug     = utilidad_por_bolsa_sug * total_unidades
+utilidad_pct_sug       = (utilidad_por_bolsa_sug / precio_venta_sugerido * 100) if precio_venta_sugerido else 0
 
 # ----------------- MÉTRICAS -----------------
 st.success(f"### Costo total del mes: ${costo_total:,.2f}")
 
 col1, col2 = st.columns(2)
-col1.metric("Costo/bolsa", f"${costo_por_bolsa:,.2f}")
-col2.metric("Bolsas producidas", f"{total_unidades}")
+col1.metric("Costo/bolsa",       f"${costo_por_bolsa:,.2f}")
+col2.metric("Bolsas producidas",  f"{total_unidades}")
 
 st.markdown("---")
 
 st.markdown("#### 🔸 Resultado Actual")
 a1, a2, a3 = st.columns(3)
-a1.metric("Utilidad/bolsa", f"${utilidad_por_bolsa:,.2f}")
-a2.metric("Utilidad total", f"${utilidad_total:,.2f}")
-a3.metric("Margen %", f"{utilidad_pct:.1f}%")
+a1.metric("Utilidad/bolsa",  f"${utilidad_por_bolsa:,.2f}")
+a2.metric("Utilidad total",  f"${utilidad_total:,.2f}")
+a3.metric("Margen %",        f"{utilidad_pct:.1f}%")
 
 st.markdown("#### 🔸 Resultado Sugerido")
 s1, s2, s3 = st.columns(3)
-s1.metric("Utilidad/bolsa", f"${utilidad_por_bolsa_sug:,.2f}")
-s2.metric("Utilidad total", f"${utilidad_total_sug:,.2f}")
-s3.metric("Margen %", f"{utilidad_pct_sug:.1f}%")
+s1.metric("Utilidad/bolsa",  f"${utilidad_por_bolsa_sug:,.2f}")
+s2.metric("Utilidad total",  f"${utilidad_total_sug:,.2f}")
+s3.metric("Margen %",        f"{utilidad_pct_sug:.1f}%")
 
 st.markdown("---")
 
+# ----------------- COSTO DE EMPAQUES -----------------
 st.markdown("**Costo de Empaques**")
 e1, e2 = st.columns(2)
-e1.metric("Total empaques", f"${empaques:,.2f}")
-e2.metric("Costo / bolsa", f"${costo_unitario_empaque:.2f}")
+e1.metric("Costo total empaques", f"${empaques:,.2f}")
+e2.metric("Costo empaque / bolsa", f"${costo_unitario_empaque:.2f}")
 
 # ----------------- FUNCIÓN AUTOPCT -----------------
 def make_autopct(values):
@@ -190,7 +161,7 @@ def make_autopct(values):
 # ----------------- GRÁFICOS -----------------
 st.header("📊 Análisis Gráfico")
 
-# 1) Desglose de costos – BARRA HORIZONTAL
+# 1) Costos por rubro
 st.subheader("1. Costos por Rubro")
 labels = [
     "Carne fresca","Sal","Corte","Sueldo princ.","Trabajador adic.",
@@ -277,4 +248,4 @@ for i in range(2):
         )
 st.pyplot(fig4)
 
-st.caption("Desarrollado para La Vaquita Feliz 🐮 — tablas y gráficos ajustados para mejor lectura.")
+st.caption("Desarrollado para La Vaquita Feliz 🐮 — tablas y gráficos optimizados para lectura.")
