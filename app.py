@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime
 
 # ----------------- DATABASE -----------------
-@st.experimental_singleton
+@st.cache_resource
 def get_db():
     conn = sqlite3.connect('sessions.db', check_same_thread=False)
     c = conn.cursor()
