@@ -3,21 +3,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sqlite3
 from datetime import datetime
+import pandas as pd
 
-# ----------------- DATABASE -----------------
-@st.experimental_singleton
-def get_db():
-    conn = sqlite3.connect('sessions.db', check_same_thread=False)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS sessions (
+# ----------------- DATABASE SETUP -----------------
+def init_database():
+    """Initialize the SQLite database and create tables if they don't exist."""
+    conn = sqlite3.connect('machaca_calculator.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS calculation_versions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT,
+            version_name TEXT NOT NULL,
+            created_date TEXT NOT NULL,
             carne_fresca REAL,
             sal REAL,
-            corte_carne REAL,
             sueldo1 REAL,
             trabajador_adicional REAL,
+            corte_carne REAL,
             luz REAL,
             agua REAL,
             fumigacion REAL,
@@ -28,46 +31,82 @@ def get_db():
             precio_venta_sugerido REAL
         )
     ''')
+    
     conn.commit()
-    return conn
+    conn.close()
 
-# ----------------- SAVE & LOAD -----------------
-def load_sessions():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('SELECT id, timestamp FROM sessions ORDER BY id DESC')
-    return c.fetchall()
-
-def load_session_data(session_id):
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
-    return c.fetchone()
-
-def save_session(data, session_id=None):
-    conn = get_db()
-    c = conn.cursor()
-    if session_id:
-        c.execute(
-            '''UPDATE sessions SET
-                timestamp=?, carne_fresca=?, sal=?, corte_carne=?, sueldo1=?,
-                trabajador_adicional=?, luz=?, agua=?, fumigacion=?,
-                liquidos_limpieza=?, otro_liquido=?, total_unidades=?,
-                precio_venta=?, precio_venta_sugerido=?
-               WHERE id=?''',
-            (*data, session_id)
-        )
-    else:
-        c.execute(
-            '''INSERT INTO sessions (
-                timestamp, carne_fresca, sal, corte_carne, sueldo1,
-                trabajador_adicional, luz, agua, fumigacion,
-                liquidos_limpieza, otro_liquido, total_unidades,
-                precio_venta, precio_venta_sugerido
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-            data
-        )
+def save_calculation(version_name, data):
+    """Save a calculation version to the database."""
+    conn = sqlite3.connect('machaca_calculator.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO calculation_versions (
+            version_name, created_date, carne_fresca, sal, sueldo1,
+            trabajador_adicional, corte_carne, luz, agua, fumigacion,
+            liquidos_limpieza, otro_liquido, total_unidades,
+            precio_venta, precio_venta_sugerido
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        version_name,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        data['carne_fresca'],
+        data['sal'],
+        data['sueldo1'],
+        data['trabajador_adicional'],
+        data['corte_carne'],
+        data['luz'],
+        data['agua'],
+        data['fumigacion'],
+        data['liquidos_limpieza'],
+        data['otro_liquido'],
+        data['total_unidades'],
+        data['precio_venta'],
+        data['precio_venta_sugerido']
+    ))
+    
     conn.commit()
+    conn.close()
+
+def get_all_versions():
+    """Get all saved calculation versions."""
+    conn = sqlite3.connect('machaca_calculator.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT id, version_name, created_date FROM calculation_versions
+        ORDER BY created_date DESC
+    ''')
+    
+    versions = cursor.fetchall()
+    conn.close()
+    return versions
+
+def get_version_data(version_id):
+    """Get data for a specific version."""
+    conn = sqlite3.connect('machaca_calculator.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT * FROM calculation_versions WHERE id = ?
+    ''', (version_id,))
+    
+    version_data = cursor.fetchone()
+    conn.close()
+    return version_data
+
+def delete_version(version_id):
+    """Delete a specific version."""
+    conn = sqlite3.connect('machaca_calculator.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('DELETE FROM calculation_versions WHERE id = ?', (version_id,))
+    
+    conn.commit()
+    conn.close()
+
+# Initialize database
+init_database()
 
 # ----------------- CONFIG -----------------
 st.set_page_config(
@@ -77,218 +116,536 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ----------------- CSS -----------------
+# ----------------- CSS CUSTOMIZATION -----------------
 st.markdown(
     """
     <style>
-      .block-container { max-width: 800px !important; padding: 0.5rem 1rem !important; }
-      footer { visibility: hidden; }
+      /* Constrain max width */
+      .block-container {
+        max-width: 800px !important;
+        padding: 0.5rem 1rem !important;
+      }
+      /* Gradient background */
+      .reportview-container {
+        background: linear-gradient(135deg, #FFF7E0, #FFE4B3);
+      }
+      /* Center titles */
+      h1, .stHeader h2 {
+        text-align: center;
+      }
+      /* Smaller metric text */
+      .stMetricValue, .css-1v0mbdj {
+        font-size: 1rem !important;
+      }
+      .stMetricLabel, .css-1avcm0n {
+        font-size: 0.8rem !important;
+      }
+      /* Hide footer */
+      footer {visibility: hidden;}
+      /* Style for save button */
+      .save-section {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+      }
     </style>
-    """, unsafe_allow_html=True
+    """,
+    unsafe_allow_html=True,
 )
 
-# ----------------- TABS -----------------
-tab1, tab2 = st.tabs(["Calculadora", "Sesiones Guardadas"])
+# ----------------- PAGE NAVIGATION -----------------
+page = st.sidebar.selectbox("📋 Navegación", ["Calculadora Principal", "Versiones Guardadas"])
 
-# Default values
-defaults = {
-    "carne_fresca": 52473.06,
-    "sal": 31.35,
-    "corte_carne": 1024.14,
-    "sueldo1": 7266.95,
-    "trabajador_adicional": 3000.00,
-    "luz": 651.25,
-    "agua": 145.34,
-    "fumigacion": 726.69,
-    "liquidos_limpieza": 297.01,
-    "otro_liquido": 18.35,
-    "total_unidades": 453,
-    "precio_venta": 145.18,
-    "precio_venta_sugerido": 196.00
-}
+if page == "Calculadora Principal":
+    # ----------------- INITIALIZE SESSION STATE DEFAULTS -----------------
+    # Initialize session state with default values if not already set
+    if 'initialized' not in st.session_state:
+        st.session_state.initialized = True
+        st.session_state.carne_fresca = 52473.06
+        st.session_state.sal = 31.35
+        st.session_state.sueldo1 = 7266.95
+        st.session_state.trabajador_adicional = 3000.00
+        st.session_state.corte_carne = 1024.14
+        st.session_state.luz = 651.25
+        st.session_state.agua = 145.34
+        st.session_state.fumigacion = 726.69
+        st.session_state.liquidos_limpieza = 297.01
+        st.session_state.otro_liquido = 18.35
+        st.session_state.total_unidades = 453
+        st.session_state.precio_venta = 145.18
+        st.session_state.precio_venta_sugerido = 196.00
 
-# Initialize session state
-for key, val in defaults.items():
-    if key not in st.session_state:
-        st.session_state[key] = val
-if 'loaded_id' not in st.session_state:
-    st.session_state['loaded_id'] = None
+    # ----------------- LOAD VERSION DATA IF SELECTED -----------------
+    if 'load_version_data' in st.session_state and st.session_state.load_version_data:
+        version_data = st.session_state.load_version_data
+        # Set session state values from loaded data
+        st.session_state.carne_fresca = version_data[3]
+        st.session_state.sal = version_data[4]
+        st.session_state.sueldo1 = version_data[5]
+        st.session_state.trabajador_adicional = version_data[6]
+        st.session_state.corte_carne = version_data[7]
+        st.session_state.luz = version_data[8]
+        st.session_state.agua = version_data[9]
+        st.session_state.fumigacion = version_data[10]
+        st.session_state.liquidos_limpieza = version_data[11]
+        st.session_state.otro_liquido = version_data[12]
+        st.session_state.total_unidades = version_data[13]
+        st.session_state.precio_venta = version_data[14]
+        st.session_state.precio_venta_sugerido = version_data[15]
+        
+        # Clear the session state
+        st.session_state.load_version_data = None
+    elif 'reset_values' in st.session_state and st.session_state.reset_values:
+        # Set all values to zero for reset
+        st.session_state.carne_fresca = 0.0
+        st.session_state.sal = 0.0
+        st.session_state.sueldo1 = 0.0
+        st.session_state.trabajador_adicional = 0.0
+        st.session_state.corte_carne = 0.0
+        st.session_state.luz = 0.0
+        st.session_state.agua = 0.0
+        st.session_state.fumigacion = 0.0
+        st.session_state.liquidos_limpieza = 0.0
+        st.session_state.otro_liquido = 0.0
+        st.session_state.total_unidades = 1
+        st.session_state.precio_venta = 0.0
+        st.session_state.precio_venta_sugerido = 0.0
+        
+        # Clear the reset flag
+        st.session_state.reset_values = False
 
-# ----------------- CALCULATOR TAB -----------------
-with tab1:
+    # ----------------- SIDEBAR INPUTS -----------------
     st.sidebar.header("🛠 Ajustes de Costos & Ventas")
-    # Float inputs
-    st.session_state['carne_fresca'] = st.sidebar.number_input(
-        "Carne fresca ($)", min_value=0.0, max_value=1e6,
-        value=float(st.session_state['carne_fresca']), step=10.0,
-        key="carne_fresca"
-    )
-    st.session_state['sal'] = st.sidebar.number_input(
-        "Sal ($)", min_value=0.0, max_value=1e4,
-        value=float(st.session_state['sal']), step=1.0,
-        key="sal"
-    )
-    st.session_state['corte_carne'] = st.sidebar.number_input(
-        "Costo de corte ($)", min_value=0.0, max_value=1e5,
-        value=float(st.session_state['corte_carne']), step=10.0,
-        key="corte_carne"
-    )
-    st.session_state['sueldo1'] = st.sidebar.number_input(
-        "Sueldo principal ($)", min_value=0.0, max_value=1e5,
-        value=float(st.session_state['sueldo1']), step=10.0,
-        key="sueldo1"
-    )
-    st.session_state['trabajador_adicional'] = st.sidebar.number_input(
-        "Trabajador adicional ($)", min_value=0.0, max_value=1e5,
-        value=float(st.session_state['trabajador_adicional']), step=10.0,
-        key="trabajador_adicional"
-    )
-    st.session_state['luz'] = st.sidebar.number_input(
-        "Luz mensual ($)", min_value=0.0, max_value=1e4,
-        value=float(st.session_state['luz']), step=1.0,
-        key="luz"
-    )
-    st.session_state['agua'] = st.sidebar.number_input(
-        "Agua ($)", min_value=0.0, max_value=1e4,
-        value=float(st.session_state['agua']), step=1.0,
-        key="agua"
-    )
-    st.session_state['fumigacion'] = st.sidebar.number_input(
-        "Fumigación ($)", min_value=0.0, max_value=1e4,
-        value=float(st.session_state['fumigacion']), step=1.0,
-        key="fumigacion"
-    )
-    st.session_state['liquidos_limpieza'] = st.sidebar.number_input(
-        "Líquidos limpieza ($)", min_value=0.0, max_value=1e4,
-        value=float(st.session_state['liquidos_limpieza']), step=1.0,
-        key="liquidos_limpieza"
-    )
-    st.session_state['otro_liquido'] = st.sidebar.number_input(
-        "Otro líquido ($)", min_value=0.0, max_value=1e4,
-        value=float(st.session_state['otro_liquido']), step=1.0,
-        key="otro_liquido"
-    )
-    # Integer input
-    st.session_state['total_unidades'] = st.sidebar.number_input(
-        "Bolsas producidas", min_value=1, max_value=100000,
-        value=int(st.session_state['total_unidades']), step=1,
-        format="%d", key="total_unidades"
-    )
-    # Floats
-    st.session_state['precio_venta'] = st.sidebar.number_input(
-        "Precio actual ($)", min_value=0.0, max_value=1e3,
-        value=float(st.session_state['precio_venta']), step=0.1,
-        key="precio_venta"
-    )
-    st.session_state['precio_venta_sugerido'] = st.sidebar.number_input(
-        "Precio sugerido ($)", min_value=0.0, max_value=1e3,
-        value=float(st.session_state['precio_venta_sugerido']), step=0.1,
-        key="precio_venta_sugerido"
-    )
 
-    # Save or update session
-    if st.button("Guardar sesión"):
-        ts = datetime.now().isoformat()
-        data = (
-            ts,
-            st.session_state['carne_fresca'], st.session_state['sal'],
-            st.session_state['corte_carne'], st.session_state['sueldo1'],
-            st.session_state['trabajador_adicional'], st.session_state['luz'],
-            st.session_state['agua'], st.session_state['fumigacion'],
-            st.session_state['liquidos_limpieza'], st.session_state['otro_liquido'],
-            st.session_state['total_unidades'], st.session_state['precio_venta'],
-            st.session_state['precio_venta_sugerido']
-        )
-        save_session(data, st.session_state['loaded_id'])
-        msg = (
-            f"Sesión {st.session_state['loaded_id']} actualizada." 
-            if st.session_state['loaded_id'] else "Sesión guardada."
-        )
-        st.success(msg)
-        for k, v in defaults.items(): st.session_state[k] = v
-        st.session_state['loaded_id'] = None
-        st.experimental_rerun()
+    # Materia Prima
+    st.sidebar.subheader("🔹 Materia Prima")
+    carne_fresca = st.sidebar.number_input("Carne fresca ($)", min_value=0.0, value=st.session_state.carne_fresca, step=10.0, key="input_carne_fresca")
+    sal = st.sidebar.number_input("Sal ($)", min_value=0.0, value=st.session_state.sal, step=1.0, key="input_sal")
 
-    # Calculations
-    empaques = st.session_state['total_unidades'] * 2.0
-    costo_total = sum([
-        st.session_state['carne_fresca'], st.session_state['sal'],
-        st.session_state['corte_carne'], st.session_state['sueldo1'],
-        st.session_state['trabajador_adicional'], st.session_state['luz'],
-        st.session_state['agua'], st.session_state['fumigacion'],
-        st.session_state['liquidos_limpieza'], st.session_state['otro_liquido'],
+    # Mano de Obra
+    st.sidebar.subheader("🔹 Mano de Obra")
+    sueldo1 = st.sidebar.number_input("Sueldo principal ($)", min_value=0.0, value=st.session_state.sueldo1, step=10.0, key="input_sueldo1")
+    trabajador_adicional = st.sidebar.number_input("Trabajador adicional ($)", min_value=0.0, value=st.session_state.trabajador_adicional, step=10.0, key="input_trabajador_adicional")
+    corte_carne = st.sidebar.number_input("Costo de corte de carne ($)", min_value=0.0, value=st.session_state.corte_carne, step=10.0, key="input_corte_carne")
+
+    # Servicios y Gastos Fijos
+    st.sidebar.subheader("🔹 Servicios & Fijos")
+    luz = st.sidebar.number_input("Luz mensual ($)", min_value=0.0, value=st.session_state.luz, step=1.0, key="input_luz")
+    agua = st.sidebar.number_input("Agua ($)", min_value=0.0, value=st.session_state.agua, step=1.0, key="input_agua")
+    fumigacion = st.sidebar.number_input("Fumigación ($)", min_value=0.0, value=st.session_state.fumigacion, step=1.0, key="input_fumigacion")
+    liquidos_limpieza = st.sidebar.number_input("Líquidos de limpieza ($)", min_value=0.0, value=st.session_state.liquidos_limpieza, step=1.0, key="input_liquidos_limpieza")
+    otro_liquido = st.sidebar.number_input("Otro líquido de limpieza ($)", min_value=0.0, value=st.session_state.otro_liquido, step=1.0, key="input_otro_liquido")
+
+    # Producción y Ventas
+    st.sidebar.subheader("🛒 Producción & Ventas")
+    total_unidades = st.sidebar.number_input("Bolsas producidas", min_value=1, value=st.session_state.total_unidades, step=1, key="input_total_unidades")
+    
+    # Update session state with current values
+    st.session_state.carne_fresca = carne_fresca
+    st.session_state.sal = sal
+    st.session_state.sueldo1 = sueldo1
+    st.session_state.trabajador_adicional = trabajador_adicional
+    st.session_state.corte_carne = corte_carne
+    st.session_state.luz = luz
+    st.session_state.agua = agua
+    st.session_state.fumigacion = fumigacion
+    st.session_state.liquidos_limpieza = liquidos_limpieza
+    st.session_state.otro_liquido = otro_liquido
+    st.session_state.total_unidades = total_unidades
+    
+    # Calculate cost per bag first for margin calculations
+    costo_unitario_empaque = 2.0
+    empaques = total_unidades * costo_unitario_empaque
+    costo_total_temp = (
+        carne_fresca + sal + corte_carne +
+        sueldo1 + trabajador_adicional +
+        luz + agua + fumigacion +
+        liquidos_limpieza + otro_liquido +
         empaques
-    ])
-    costo_por_bolsa = costo_total / st.session_state['total_unidades']
-    utilidad_por_bolsa = st.session_state['precio_venta'] - costo_por_bolsa
-    utilidad_total = utilidad_por_bolsa * st.session_state['total_unidades']
-    utilidad_pct = (utilidad_por_bolsa / st.session_state['precio_venta'] * 100)
-    utilidad_por_bolsa_sug = st.session_state['precio_venta_sugerido'] - costo_por_bolsa
-    utilidad_total_sug = utilidad_por_bolsa_sug * st.session_state['total_unidades']
-    utilidad_pct_sug = (utilidad_por_bolsa_sug / st.session_state['precio_venta_sugerido'] * 100)
+    )
+    costo_por_bolsa_temp = costo_total_temp / total_unidades
+    
+    # Price/Margin control options
+    precio_control = st.sidebar.radio(
+        "🎯 Control de Precio/Margen:",
+        ["Por Precio", "Por Margen %"],
+        help="Elige si quieres controlar el precio directamente o por margen de ganancia"
+    )
+    
+    # --- PRECIO ACTUAL ---
+    st.sidebar.markdown("**💰 Precio Actual**")
+    if precio_control == "Por Precio":
+        precio_venta = st.sidebar.number_input("Precio actual por bolsa ($)", min_value=0.0, value=st.session_state.precio_venta, step=1.0, key="input_precio_venta")
+        # Calculate and display margin
+        if precio_venta > 0:
+            margen_calculado = ((precio_venta - costo_por_bolsa_temp) / precio_venta) * 100
+            if margen_calculado >= 0:
+                st.sidebar.info(f"📊 Margen actual: {margen_calculado:.1f}%")
+            else:
+                st.sidebar.error(f"⚠️ Margen negativo: {margen_calculado:.1f}% (PÉRDIDA)")
+        else:
+            st.sidebar.warning("⚠️ Precio debe ser mayor a $0")
+    else:
+        # Control by margin
+        # Calculate current margin for default value, but handle negative margins
+        if st.session_state.precio_venta > 0:
+            current_margin = ((st.session_state.precio_venta - costo_por_bolsa_temp) / st.session_state.precio_venta * 100)
+            # Ensure the margin is not negative for the number input
+            current_margin = max(0.0, current_margin)
+        else:
+            current_margin = 20.0
+        
+        margen_deseado = st.sidebar.number_input(
+            "Margen deseado (%)", 
+            min_value=0.0, 
+            max_value=95.0,  # Changed from 100 to 95 to avoid division issues
+            value=current_margin,
+            step=1.0,
+            help="Margen de ganancia deseado en porcentaje",
+            key="input_margen_deseado"
+        )
+        
+        # Calculate price based on margin
+        if margen_deseado < 95:  # Avoid division by zero/negative issues
+            precio_venta = costo_por_bolsa_temp / (1 - margen_deseado/100)
+        else:
+            precio_venta = costo_por_bolsa_temp * 20  # Fallback for high margins
+        
+        st.sidebar.info(f"💰 Precio calculado: ${precio_venta:.2f}")
+        
+        # Show warning if original margin was negative
+        if st.session_state.precio_venta > 0:
+            original_margin = ((st.session_state.precio_venta - costo_por_bolsa_temp) / st.session_state.precio_venta * 100)
+            if original_margin < 0:
+                st.sidebar.warning(f"⚠️ Nota: El precio original tenía un margen negativo de {original_margin:.1f}%")
 
-    # Display metrics
-    st.success(f"Costo total del mes: ${costo_total:,.2f}")
-    c1, c2 = st.columns(2)
-    c1.metric("Costo/bolsa", f"${costo_por_bolsa:,.2f}")
-    c2.metric("Bolsas producidas", f"{st.session_state['total_unidades']}")
+    # --- PRECIO SUGERIDO ---
+    st.sidebar.markdown("**✨ Precio Sugerido**")
+    if precio_control == "Por Precio":
+        precio_venta_sugerido = st.sidebar.number_input("Precio sugerido por bolsa ($)", min_value=0.0, value=st.session_state.precio_venta_sugerido, step=1.0, key="input_precio_venta_sugerido")
+        # Calculate and display margin for suggested price
+        if precio_venta_sugerido > 0:
+            margen_calculado_sug = ((precio_venta_sugerido - costo_por_bolsa_temp) / precio_venta_sugerido) * 100
+            if margen_calculado_sug >= 0:
+                st.sidebar.info(f"📊 Margen sugerido: {margen_calculado_sug:.1f}%")
+            else:
+                st.sidebar.error(f"⚠️ Margen negativo: {margen_calculado_sug:.1f}% (PÉRDIDA)")
+        else:
+            st.sidebar.warning("⚠️ Precio debe ser mayor a $0")
+    else:
+        # Control by margin for suggested price
+        # Calculate current margin for default value, but handle negative margins
+        if st.session_state.precio_venta_sugerido > 0:
+            current_margin_sug = ((st.session_state.precio_venta_sugerido - costo_por_bolsa_temp) / st.session_state.precio_venta_sugerido * 100)
+            # Ensure the margin is not negative for the number input
+            current_margin_sug = max(0.0, current_margin_sug)
+        else:
+            current_margin_sug = 30.0  # Default higher margin for suggested price
+        
+        margen_deseado_sug = st.sidebar.number_input(
+            "Margen sugerido (%)", 
+            min_value=0.0, 
+            max_value=95.0,  # Changed from 100 to 95 to avoid division issues
+            value=current_margin_sug,
+            step=1.0,
+            help="Margen de ganancia deseado para el precio sugerido",
+            key="input_margen_deseado_sug"
+        )
+        
+        # Calculate suggested price based on margin
+        if margen_deseado_sug < 95:  # Avoid division by zero/negative issues
+            precio_venta_sugerido = costo_por_bolsa_temp / (1 - margen_deseado_sug/100)
+        else:
+            precio_venta_sugerido = costo_por_bolsa_temp * 20  # Fallback for high margins
+        
+        st.sidebar.info(f"✨ Precio sugerido calculado: ${precio_venta_sugerido:.2f}")
+        
+        # Show warning if original suggested margin was negative
+        if st.session_state.precio_venta_sugerido > 0:
+            original_margin_sug = ((st.session_state.precio_venta_sugerido - costo_por_bolsa_temp) / st.session_state.precio_venta_sugerido * 100)
+            if original_margin_sug < 0:
+                st.sidebar.warning(f"⚠️ Nota: El precio sugerido original tenía un margen negativo de {original_margin_sug:.1f}%")
+    
+    # Update session state with pricing values
+    st.session_state.precio_venta = precio_venta
+    st.session_state.precio_venta_sugerido = precio_venta_sugerido
+
+    # ----------------- MAIN LAYOUT -----------------
+    st.title("🐮 La Vaquita Feliz")
+    st.subheader("Calculadora Visual de Utilidad para Machaca")
+
+    # ----------------- RESET SECTION -----------------
+    with st.container():
+        st.markdown("### 🔄 Resetear Calculadora")
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.info("Esto pondrá todos los valores en cero. Útil para empezar un cálculo completamente nuevo.")
+        
+        with col2:
+            if st.button("🔄 Resetear Todo", type="secondary"):
+                # Reset all values by clearing session state and rerunning
+                if 'load_version_data' in st.session_state:
+                    del st.session_state.load_version_data
+                
+                # Set all values to zero by creating a reset flag
+                st.session_state.reset_values = True
+                st.success("✅ Todos los valores han sido reseteados")
+                st.rerun()
+        
+        st.markdown("---")
+
+    # ----------------- SAVE SECTION -----------------
+    with st.container():
+        st.markdown('<div class="save-section">', unsafe_allow_html=True)
+        st.markdown("### 💾 Guardar Cálculo")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            version_name = st.text_input("Nombre de la versión:", placeholder="Ej: Cálculo Enero 2025")
+        with col2:
+            st.write("")  # Empty space for alignment
+            if st.button("💾 Guardar", type="primary"):
+                if version_name:
+                    # Prepare data to save
+                    data_to_save = {
+                        'carne_fresca': st.session_state.carne_fresca,
+                        'sal': st.session_state.sal,
+                        'sueldo1': st.session_state.sueldo1,
+                        'trabajador_adicional': st.session_state.trabajador_adicional,
+                        'corte_carne': st.session_state.corte_carne,
+                        'luz': st.session_state.luz,
+                        'agua': st.session_state.agua,
+                        'fumigacion': st.session_state.fumigacion,
+                        'liquidos_limpieza': st.session_state.liquidos_limpieza,
+                        'otro_liquido': st.session_state.otro_liquido,
+                        'total_unidades': st.session_state.total_unidades,
+                        'precio_venta': st.session_state.precio_venta,
+                        'precio_venta_sugerido': st.session_state.precio_venta_sugerido
+                    }
+                    
+                    save_calculation(version_name, data_to_save)
+                    st.success(f"✅ Versión '{version_name}' guardada exitosamente!")
+                else:
+                    st.error("❌ Por favor ingresa un nombre para la versión")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- FÓRMULAS USADAS ---
+    with st.expander("🧮 Fórmulas detalladas"):
+        st.markdown("""
+        1. **Costo de empaques**  
+           `empaques = total_unidades × $2`
+
+        2. **Costo total**  
+           `costo_total = carne_fresca + sal + corte_carne + sueldo1 + trabajador_adicional + luz + agua + fumigacion + liquidos_limpieza + otro_liquido + empaques`
+
+        3. **Costo por bolsa**  
+           `costo_por_bolsa = costo_total ÷ total_unidades`
+
+        4. **Utilidad por bolsa**  
+           `utilidad_por_bolsa = precio_venta – costo_por_bolsa`
+
+        5. **Utilidad total**  
+           `utilidad_total = utilidad_por_bolsa × total_unidades`
+
+        6. **Margen (%)**  
+           `utilidad_pct = (utilidad_por_bolsa ÷ precio_venta) × 100`
+
+        7. **Versión sugerida**  
+           Misma lógica usando `precio_venta_sugerido` en lugar de `precio_venta`
+        """)
+
+    st.info("**Todos los valores se actualizan en tiempo real.**")
+
+    # ----------------- CÁLCULOS -----------------
+    costo_unitario_empaque = 2.0
+    empaques = total_unidades * costo_unitario_empaque
+
+    costo_total = (
+        carne_fresca + sal + corte_carne +
+        sueldo1 + trabajador_adicional +
+        luz + agua + fumigacion +
+        liquidos_limpieza + otro_liquido +
+        empaques
+    )
+    costo_por_bolsa = costo_total / total_unidades
+
+    utilidad_por_bolsa = precio_venta - costo_por_bolsa
+    utilidad_total = utilidad_por_bolsa * total_unidades
+    utilidad_pct = (utilidad_por_bolsa / precio_venta * 100) if precio_venta else 0
+
+    utilidad_por_bolsa_sug = precio_venta_sugerido - costo_por_bolsa
+    utilidad_total_sug = utilidad_por_bolsa_sug * total_unidades
+    utilidad_pct_sug = (utilidad_por_bolsa_sug / precio_venta_sugerido * 100) if precio_venta_sugerido else 0
+
+    # ----------------- MÉTRICAS -----------------
+    st.success(f"### Costo total del mes: ${costo_total:,.2f}")
+
+    col1, col2 = st.columns(2)
+    col1.metric("Costo/bolsa", f"${costo_por_bolsa:,.2f}")
+    col2.metric("Bolsas producidas", f"{total_unidades}")
 
     st.markdown("---")
-    st.markdown("#### 🔸 Actual")
+
+    st.markdown("#### 🔸 Resultado Actual")
     a1, a2, a3 = st.columns(3)
     a1.metric("Utilidad/bolsa", f"${utilidad_por_bolsa:,.2f}")
     a2.metric("Utilidad total", f"${utilidad_total:,.2f}")
     a3.metric("Margen %", f"{utilidad_pct:.1f}%")
 
-    st.markdown("#### 🔸 Sugerido")
+    st.markdown("#### 🔸 Resultado Sugerido")
     s1, s2, s3 = st.columns(3)
     s1.metric("Utilidad/bolsa", f"${utilidad_por_bolsa_sug:,.2f}")
     s2.metric("Utilidad total", f"${utilidad_total_sug:,.2f}")
     s3.metric("Margen %", f"{utilidad_pct_sug:.1f}%")
 
     st.markdown("---")
+
+    # ----------------- COSTO DE EMPAQUES -----------------
     st.markdown("**Costo de Empaques**")
     e1, e2 = st.columns(2)
     e1.metric("Costo total empaques", f"${empaques:,.2f}")
-    e2.metric("Costo empaque / bolsa", "$2.00")
+    e2.metric("Costo empaque / bolsa", f"${costo_unitario_empaque:.2f}")
 
-    def make_autopct(vals):
+    # ----------------- FUNCIÓN AUTOPCT -----------------
+    def make_autopct(values):
         def my_autopct(pct):
-            total = sum(vals)
+            total = sum(values)
             val = pct * total / 100
             return f"{val:,.2f}\n({pct:.1f}%)"
         return my_autopct
 
+    # ----------------- GRÁFICOS -----------------
     st.header("📊 Análisis Gráfico")
-    # 1) Costos
+
+    # 1) Costos por rubro
+    st.subheader("1. Costos por Rubro")
     labels = [
         "Carne fresca","Sal","Corte","Sueldo princ.","Trabajador adic.",
         "Luz","Agua","Fumigación","Líquidos limp.","Otro líquido","Empaques"
     ]
-    vals = [
-        st.session_state['carne_fresca'], st.session_state['sal'],
-        st.session_state['corte_carne'], st.session_state['sueldo1'],
-        st.session_state['trabajador_adicional'], st.session_state['luz'],
-        st.session_state['agua'], st.session_state['fumigacion'],
-        st.session_state['liquidos_limpieza'], st.session_state['otro_liquido'],
-        empaques
+    values = [
+        carne_fresca, sal, corte_carne, sueldo1, trabajador_adicional,
+        luz, agua, fumigacion, liquidos_limpieza, otro_liquido, empaques
     ]
     fig1, ax1 = plt.subplots(figsize=(6,3))
-    ax1.barh(labels, vals, color="#C41E3A")
+    ax1.barh(labels, values, color="#C41E3A")
     ax1.set_xlabel("Monto ($)", fontsize=9)
     ax1.set_title("Costos por Rubro", fontsize=11)
     ax1.tick_params(axis='y', labelsize=8)
     ax1.tick_params(axis='x', labelsize=8)
     st.pyplot(fig1)
 
-# ----------------- SESSIONS TAB -----------------
-with tab2:
-    st.subheader("Sesiones Guardadas")
-    for sess_id, ts in load_sessions():
-        if st.button(f"ID {sess_id} - {ts}", key=f"btn_{sess_id}"):
-            row = load_session_data(sess_id)
-            for idx, key in enumerate(defaults.keys(), start=2):
-                st.session_state[key] = row[idx]
-            st.session_state['loaded_id'] = sess_id
-            st.success(f"Cargada sesión {sess_id}. Edita y guarda.")
-            st.experimental_rerun()
+    # 2) Pie Actual
+    st.subheader("2. Composición Precio Actual")
+    labels_act = ["Costo", "Utilidad"] if utilidad_por_bolsa >= 0 else ["Costo", "Pérdida"]
+    sizes_act = [costo_por_bolsa, abs(utilidad_por_bolsa)]
+    colors_act = ['#FFE4B3', '#C41E3A'] if utilidad_por_bolsa >= 0 else ['#FFE4B3', '#FF9999']
+    fig2, ax2 = plt.subplots(figsize=(3,3))
+    wedges2, texts2, autotexts2 = ax2.pie(
+        sizes_act,
+        labels=labels_act,
+        startangle=90,
+        autopct=make_autopct(sizes_act),
+        colors=colors_act,
+        textprops={'fontsize': 8}
+    )
+    ax2.set_title("Actual", fontsize=11)
+    ax2.axis('equal')
+    st.pyplot(fig2)
+
+    # 3) Pie Sugerido
+    st.subheader("3. Composición Precio Sugerido")
+    labels_sug = ["Costo", "Utilidad"] if utilidad_por_bolsa_sug >= 0 else ["Costo", "Pérdida"]
+    sizes_sug = [costo_por_bolsa, abs(utilidad_por_bolsa_sug)]
+    colors_sug = ['#E0F7FA', '#F4A261'] if utilidad_por_bolsa_sug >= 0 else ['#E0F7FA', '#FF9999']
+    fig3, ax3 = plt.subplots(figsize=(3,3))
+    wedges3, texts3, autotexts3 = ax3.pie(
+        sizes_sug,
+        labels=labels_sug,
+        startangle=90,
+        autopct=make_autopct(sizes_sug),
+        colors=colors_sug,
+        textprops={'fontsize': 8}
+    )
+    ax3.set_title("Sugerido", fontsize=11)
+    ax3.axis('equal')
+    st.pyplot(fig3)
+
+    # 4) Stacked Bar
+    st.subheader("4. Costo + Utilidad por Bolsa")
+    labels_cmp = ["Actual", "Sugerido"]
+    costs_cmp = [costo_por_bolsa, costo_por_bolsa]
+    profits_cmp = [utilidad_por_bolsa, utilidad_por_bolsa_sug]
+    fig4, ax4 = plt.subplots(figsize=(5,2.5))
+    x = np.arange(len(labels_cmp))
+    ax4.bar(x, costs_cmp, 0.6, label="Costo", color="#FFE4B3")
+    for i in range(2):
+        bottom = costs_cmp[i] if profits_cmp[i] >= 0 else costs_cmp[i] + profits_cmp[i]
+        color = "#C41E3A" if profits_cmp[i] >= 0 else "#FF9999"
+        ax4.bar(x[i], abs(profits_cmp[i]), 0.6, bottom=bottom, color=color)
+    ax4.set_xticks(x)
+    ax4.set_xticklabels(labels_cmp, fontsize=8)
+    ax4.set_ylabel("Monto ($)", fontsize=9)
+    ax4.set_title("Costo + Utilidad por Bolsa", fontsize=11)
+    for i in range(2):
+        total = costs_cmp[i] + profits_cmp[i]
+        if total != 0:
+            ax4.text(
+                x[i],
+                costs_cmp[i]/2,
+                f"${costs_cmp[i]:.2f}\n({costs_cmp[i]/total*100:.1f}%)",
+                ha="center", va="center", fontsize=8
+            )
+            ax4.text(
+                x[i],
+                costs_cmp[i] + profits_cmp[i]/2,
+                f"${profits_cmp[i]:.2f}\n({profits_cmp[i]/total*100:.1f}%)",
+                ha="center", va="center", fontsize=8
+            )
+    st.pyplot(fig4)
+
+    st.caption("Desarrollado para La Vaquita Feliz 🐮 — tablas y gráficos optimizados para lectura.")
+
+# ----------------- VERSIONS PAGE -----------------
+elif page == "Versiones Guardadas":
+    st.title("📂 Versiones Guardadas")
+    st.subheader("Gestión de Cálculos Guardados")
+
+    # Get all versions
+    versions = get_all_versions()
+
+    if not versions:
+        st.info("📝 No hay versiones guardadas aún. Ve a la Calculadora Principal para guardar tu primer cálculo.")
+    else:
+        st.success(f"📊 Total de versiones guardadas: {len(versions)}")
+        
+        # Display versions in a nice format
+        for version in versions:
+            version_id, version_name, created_date = version
+            
+            with st.container():
+                col1, col2, col3 = st.columns([3, 2, 1])
+                
+                with col1:
+                    st.markdown(f"**{version_name}**")
+                    st.caption(f"Creado: {created_date}")
+                
+                with col2:
+                    if st.button(f"📋 Cargar", key=f"load_{version_id}"):
+                        version_data = get_version_data(version_id)
+                        st.session_state.load_version_data = version_data
+                        st.success(f"✅ Versión '{version_name}' cargada. Ve a la Calculadora Principal para verla.")
+                        st.rerun()
+                
+                with col3:
+                    if st.button(f"🗑️ Eliminar", key=f"delete_{version_id}", type="secondary"):
+                        delete_version(version_id)
+                        st.success(f"🗑️ Versión '{version_name}' eliminada.")
+                        st.rerun()
+                
+                st.markdown("---")
+
+        # Show
