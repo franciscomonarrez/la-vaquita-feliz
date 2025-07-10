@@ -20,6 +20,8 @@ def init_database():
             sal REAL,
             sueldo1 REAL,
             trabajador_adicional REAL,
+            empleado_ventas REAL,
+            redes_sociales REAL,
             corte_carne REAL,
             luz REAL,
             agua REAL,
@@ -43,10 +45,10 @@ def save_calculation(version_name, data):
     cursor.execute('''
         INSERT INTO calculation_versions (
             version_name, created_date, carne_fresca, sal, sueldo1,
-            trabajador_adicional, corte_carne, luz, agua, fumigacion,
+            trabajador_adicional, empleado_ventas, redes_sociales, corte_carne, luz, agua, fumigacion,
             liquidos_limpieza, otro_liquido, total_unidades,
             precio_venta, precio_venta_sugerido
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         version_name,
         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -54,6 +56,8 @@ def save_calculation(version_name, data):
         data['sal'],
         data['sueldo1'],
         data['trabajador_adicional'],
+        data['empleado_ventas'],
+        data['redes_sociales'],
         data['corte_carne'],
         data['luz'],
         data['agua'],
@@ -166,6 +170,8 @@ if page == "Calculadora Principal":
         st.session_state.sal = 31.35
         st.session_state.sueldo1 = 7266.95
         st.session_state.trabajador_adicional = 3000.00
+        st.session_state.empleado_ventas = 0.00
+        st.session_state.redes_sociales = 0.00
         st.session_state.corte_carne = 1024.14
         st.session_state.luz = 651.25
         st.session_state.agua = 145.34
@@ -184,15 +190,62 @@ if page == "Calculadora Principal":
         st.session_state.sal = version_data[4]
         st.session_state.sueldo1 = version_data[5]
         st.session_state.trabajador_adicional = version_data[6]
-        st.session_state.corte_carne = version_data[7]
-        st.session_state.luz = version_data[8]
-        st.session_state.agua = version_data[9]
-        st.session_state.fumigacion = version_data[10]
-        st.session_state.liquidos_limpieza = version_data[11]
-        st.session_state.otro_liquido = version_data[12]
-        st.session_state.total_unidades = version_data[13]
-        st.session_state.precio_venta = version_data[14]
-        st.session_state.precio_venta_sugerido = version_data[15]
+        
+        # Handle new fields for older versions
+        if len(version_data) > 7:
+            st.session_state.empleado_ventas = version_data[7]
+        else:
+            st.session_state.empleado_ventas = 0.0
+            
+        if len(version_data) > 8:
+            st.session_state.redes_sociales = version_data[8]
+        else:
+            st.session_state.redes_sociales = 0.0
+            
+        if len(version_data) > 9:
+            st.session_state.corte_carne = version_data[9]
+        else:
+            st.session_state.corte_carne = version_data[7] if len(version_data) > 7 else 0.0
+            
+        if len(version_data) > 10:
+            st.session_state.luz = version_data[10]
+        else:
+            st.session_state.luz = version_data[8] if len(version_data) > 8 else 0.0
+            
+        if len(version_data) > 11:
+            st.session_state.agua = version_data[11]
+        else:
+            st.session_state.agua = version_data[9] if len(version_data) > 9 else 0.0
+            
+        if len(version_data) > 12:
+            st.session_state.fumigacion = version_data[12]
+        else:
+            st.session_state.fumigacion = version_data[10] if len(version_data) > 10 else 0.0
+            
+        if len(version_data) > 13:
+            st.session_state.liquidos_limpieza = version_data[13]
+        else:
+            st.session_state.liquidos_limpieza = version_data[11] if len(version_data) > 11 else 0.0
+            
+        if len(version_data) > 14:
+            st.session_state.otro_liquido = version_data[14]
+        else:
+            st.session_state.otro_liquido = version_data[12] if len(version_data) > 12 else 0.0
+            
+        if len(version_data) > 15:
+            st.session_state.total_unidades = version_data[15]
+        else:
+            st.session_state.total_unidades = version_data[13] if len(version_data) > 13 else 1
+            
+        if len(version_data) > 16:
+            st.session_state.precio_venta = version_data[16]
+        else:
+            st.session_state.precio_venta = version_data[14] if len(version_data) > 14 else 0.0
+            
+        if len(version_data) > 17:
+            st.session_state.precio_venta_sugerido = version_data[17]
+        else:
+            st.session_state.precio_venta_sugerido = version_data[15] if len(version_data) > 15 else 0.0
         
         # Clear the session state
         st.session_state.load_version_data = None
@@ -202,6 +255,8 @@ if page == "Calculadora Principal":
         st.session_state.sal = 0.0
         st.session_state.sueldo1 = 0.0
         st.session_state.trabajador_adicional = 0.0
+        st.session_state.empleado_ventas = 0.0
+        st.session_state.redes_sociales = 0.0
         st.session_state.corte_carne = 0.0
         st.session_state.luz = 0.0
         st.session_state.agua = 0.0
@@ -220,51 +275,40 @@ if page == "Calculadora Principal":
 
     # Materia Prima
     st.sidebar.subheader("🔹 Materia Prima")
-    carne_fresca = st.sidebar.number_input("Carne fresca ($)", min_value=0.0, value=st.session_state.carne_fresca, step=10.0, key="input_carne_fresca")
-    sal = st.sidebar.number_input("Sal ($)", min_value=0.0, value=st.session_state.sal, step=1.0, key="input_sal")
+    st.session_state.carne_fresca = st.sidebar.number_input("Carne fresca ($)", min_value=0.0, value=st.session_state.carne_fresca, step=10.0)
+    st.session_state.sal = st.sidebar.number_input("Sal ($)", min_value=0.0, value=st.session_state.sal, step=1.0)
 
     # Mano de Obra
     st.sidebar.subheader("🔹 Mano de Obra")
-    sueldo1 = st.sidebar.number_input("Sueldo principal ($)", min_value=0.0, value=st.session_state.sueldo1, step=10.0, key="input_sueldo1")
-    trabajador_adicional = st.sidebar.number_input("Trabajador adicional ($)", min_value=0.0, value=st.session_state.trabajador_adicional, step=10.0, key="input_trabajador_adicional")
-    corte_carne = st.sidebar.number_input("Costo de corte de carne ($)", min_value=0.0, value=st.session_state.corte_carne, step=10.0, key="input_corte_carne")
+    st.session_state.sueldo1 = st.sidebar.number_input("Sueldo principal ($)", min_value=0.0, value=st.session_state.sueldo1, step=10.0)
+    st.session_state.trabajador_adicional = st.sidebar.number_input("Trabajador adicional ($)", min_value=0.0, value=st.session_state.trabajador_adicional, step=10.0)
+    st.session_state.empleado_ventas = st.sidebar.number_input("Empleado de ventas ($)", min_value=0.0, value=st.session_state.empleado_ventas, step=10.0)
+    st.session_state.redes_sociales = st.sidebar.number_input("Redes sociales ($)", min_value=0.0, value=st.session_state.redes_sociales, step=10.0)
+    st.session_state.corte_carne = st.sidebar.number_input("Costo de corte de carne ($)", min_value=0.0, value=st.session_state.corte_carne, step=10.0)
 
     # Servicios y Gastos Fijos
     st.sidebar.subheader("🔹 Servicios & Fijos")
-    luz = st.sidebar.number_input("Luz mensual ($)", min_value=0.0, value=st.session_state.luz, step=1.0, key="input_luz")
-    agua = st.sidebar.number_input("Agua ($)", min_value=0.0, value=st.session_state.agua, step=1.0, key="input_agua")
-    fumigacion = st.sidebar.number_input("Fumigación ($)", min_value=0.0, value=st.session_state.fumigacion, step=1.0, key="input_fumigacion")
-    liquidos_limpieza = st.sidebar.number_input("Líquidos de limpieza ($)", min_value=0.0, value=st.session_state.liquidos_limpieza, step=1.0, key="input_liquidos_limpieza")
-    otro_liquido = st.sidebar.number_input("Otro líquido de limpieza ($)", min_value=0.0, value=st.session_state.otro_liquido, step=1.0, key="input_otro_liquido")
+    st.session_state.luz = st.sidebar.number_input("Luz mensual ($)", min_value=0.0, value=float(st.session_state.luz), step=1.0)
+    st.session_state.agua = st.sidebar.number_input("Agua ($)", min_value=0.0, value=float(st.session_state.agua), step=1.0)
+    st.session_state.fumigacion = st.sidebar.number_input("Fumigación ($)", min_value=0.0, value=float(st.session_state.fumigacion), step=1.0)
+    st.session_state.liquidos_limpieza = st.sidebar.number_input("Líquidos de limpieza ($)", min_value=0.0, value=float(st.session_state.liquidos_limpieza), step=1.0)
+    st.session_state.otro_liquido = st.sidebar.number_input("Otro líquido de limpieza ($)", min_value=0.0, value=float(st.session_state.otro_liquido), step=1.0)
 
     # Producción y Ventas
     st.sidebar.subheader("🛒 Producción & Ventas")
-    total_unidades = st.sidebar.number_input("Bolsas producidas", min_value=1, value=st.session_state.total_unidades, step=1, key="input_total_unidades")
+    st.session_state.total_unidades = st.sidebar.number_input("Bolsas producidas", min_value=1, value=int(st.session_state.total_unidades), step=1)
     
-    # Update session state with current values
-    st.session_state.carne_fresca = carne_fresca
-    st.session_state.sal = sal
-    st.session_state.sueldo1 = sueldo1
-    st.session_state.trabajador_adicional = trabajador_adicional
-    st.session_state.corte_carne = corte_carne
-    st.session_state.luz = luz
-    st.session_state.agua = agua
-    st.session_state.fumigacion = fumigacion
-    st.session_state.liquidos_limpieza = liquidos_limpieza
-    st.session_state.otro_liquido = otro_liquido
-    st.session_state.total_unidades = total_unidades
-    
-    # Calculate cost per bag first for margin calculations
+    # Calculate cost per bag first for margin calculations using session state values
     costo_unitario_empaque = 2.0
-    empaques = total_unidades * costo_unitario_empaque
+    empaques = st.session_state.total_unidades * costo_unitario_empaque
     costo_total_temp = (
-        carne_fresca + sal + corte_carne +
-        sueldo1 + trabajador_adicional +
-        luz + agua + fumigacion +
-        liquidos_limpieza + otro_liquido +
+        st.session_state.carne_fresca + st.session_state.sal + st.session_state.corte_carne +
+        st.session_state.sueldo1 + st.session_state.trabajador_adicional + st.session_state.empleado_ventas + st.session_state.redes_sociales +
+        st.session_state.luz + st.session_state.agua + st.session_state.fumigacion +
+        st.session_state.liquidos_limpieza + st.session_state.otro_liquido +
         empaques
     )
-    costo_por_bolsa_temp = costo_total_temp / total_unidades
+    costo_por_bolsa_temp = costo_total_temp / st.session_state.total_unidades
     
     # Price/Margin control options
     precio_control = st.sidebar.radio(
@@ -276,10 +320,10 @@ if page == "Calculadora Principal":
     # --- PRECIO ACTUAL ---
     st.sidebar.markdown("**💰 Precio Actual**")
     if precio_control == "Por Precio":
-        precio_venta = st.sidebar.number_input("Precio actual por bolsa ($)", min_value=0.0, value=st.session_state.precio_venta, step=1.0, key="input_precio_venta")
+        st.session_state.precio_venta = st.sidebar.number_input("Precio actual por bolsa ($)", min_value=0.0, value=float(st.session_state.precio_venta), step=1.0)
         # Calculate and display margin
-        if precio_venta > 0:
-            margen_calculado = ((precio_venta - costo_por_bolsa_temp) / precio_venta) * 100
+        if st.session_state.precio_venta > 0:
+            margen_calculado = ((st.session_state.precio_venta - costo_por_bolsa_temp) / st.session_state.precio_venta) * 100
             if margen_calculado >= 0:
                 st.sidebar.info(f"📊 Margen actual: {margen_calculado:.1f}%")
             else:
@@ -302,17 +346,16 @@ if page == "Calculadora Principal":
             max_value=95.0,  # Changed from 100 to 95 to avoid division issues
             value=current_margin,
             step=1.0,
-            help="Margen de ganancia deseado en porcentaje",
-            key="input_margen_deseado"
+            help="Margen de ganancia deseado en porcentaje"
         )
         
         # Calculate price based on margin
         if margen_deseado < 95:  # Avoid division by zero/negative issues
-            precio_venta = costo_por_bolsa_temp / (1 - margen_deseado/100)
+            st.session_state.precio_venta = costo_por_bolsa_temp / (1 - margen_deseado/100)
         else:
-            precio_venta = costo_por_bolsa_temp * 20  # Fallback for high margins
+            st.session_state.precio_venta = costo_por_bolsa_temp * 20  # Fallback for high margins
         
-        st.sidebar.info(f"💰 Precio calculado: ${precio_venta:.2f}")
+        st.sidebar.info(f"💰 Precio calculado: ${st.session_state.precio_venta:.2f}")
         
         # Show warning if original margin was negative
         if st.session_state.precio_venta > 0:
@@ -323,10 +366,10 @@ if page == "Calculadora Principal":
     # --- PRECIO SUGERIDO ---
     st.sidebar.markdown("**✨ Precio Sugerido**")
     if precio_control == "Por Precio":
-        precio_venta_sugerido = st.sidebar.number_input("Precio sugerido por bolsa ($)", min_value=0.0, value=st.session_state.precio_venta_sugerido, step=1.0, key="input_precio_venta_sugerido")
+        st.session_state.precio_venta_sugerido = st.sidebar.number_input("Precio sugerido por bolsa ($)", min_value=0.0, value=float(st.session_state.precio_venta_sugerido), step=1.0)
         # Calculate and display margin for suggested price
-        if precio_venta_sugerido > 0:
-            margen_calculado_sug = ((precio_venta_sugerido - costo_por_bolsa_temp) / precio_venta_sugerido) * 100
+        if st.session_state.precio_venta_sugerido > 0:
+            margen_calculado_sug = ((st.session_state.precio_venta_sugerido - costo_por_bolsa_temp) / st.session_state.precio_venta_sugerido) * 100
             if margen_calculado_sug >= 0:
                 st.sidebar.info(f"📊 Margen sugerido: {margen_calculado_sug:.1f}%")
             else:
@@ -349,17 +392,16 @@ if page == "Calculadora Principal":
             max_value=95.0,  # Changed from 100 to 95 to avoid division issues
             value=current_margin_sug,
             step=1.0,
-            help="Margen de ganancia deseado para el precio sugerido",
-            key="input_margen_deseado_sug"
+            help="Margen de ganancia deseado para el precio sugerido"
         )
         
         # Calculate suggested price based on margin
         if margen_deseado_sug < 95:  # Avoid division by zero/negative issues
-            precio_venta_sugerido = costo_por_bolsa_temp / (1 - margen_deseado_sug/100)
+            st.session_state.precio_venta_sugerido = costo_por_bolsa_temp / (1 - margen_deseado_sug/100)
         else:
-            precio_venta_sugerido = costo_por_bolsa_temp * 20  # Fallback for high margins
+            st.session_state.precio_venta_sugerido = costo_por_bolsa_temp * 20  # Fallback for high margins
         
-        st.sidebar.info(f"✨ Precio sugerido calculado: ${precio_venta_sugerido:.2f}")
+        st.sidebar.info(f"✨ Precio sugerido calculado: ${st.session_state.precio_venta_sugerido:.2f}")
         
         # Show warning if original suggested margin was negative
         if st.session_state.precio_venta_sugerido > 0:
@@ -367,9 +409,7 @@ if page == "Calculadora Principal":
             if original_margin_sug < 0:
                 st.sidebar.warning(f"⚠️ Nota: El precio sugerido original tenía un margen negativo de {original_margin_sug:.1f}%")
     
-    # Update session state with pricing values
-    st.session_state.precio_venta = precio_venta
-    st.session_state.precio_venta_sugerido = precio_venta_sugerido
+    # Session state already updated by inputs
 
     # ----------------- MAIN LAYOUT -----------------
     st.title("🐮 La Vaquita Feliz")
@@ -414,6 +454,8 @@ if page == "Calculadora Principal":
                         'sal': st.session_state.sal,
                         'sueldo1': st.session_state.sueldo1,
                         'trabajador_adicional': st.session_state.trabajador_adicional,
+                        'empleado_ventas': st.session_state.empleado_ventas,
+                        'redes_sociales': st.session_state.redes_sociales,
                         'corte_carne': st.session_state.corte_carne,
                         'luz': st.session_state.luz,
                         'agua': st.session_state.agua,
@@ -439,7 +481,7 @@ if page == "Calculadora Principal":
            `empaques = total_unidades × $2`
 
         2. **Costo total**  
-           `costo_total = carne_fresca + sal + corte_carne + sueldo1 + trabajador_adicional + luz + agua + fumigacion + liquidos_limpieza + otro_liquido + empaques`
+           `costo_total = carne_fresca + sal + corte_carne + sueldo1 + trabajador_adicional + empleado_ventas + redes_sociales + luz + agua + fumigacion + liquidos_limpieza + otro_liquido + empaques`
 
         3. **Costo por bolsa**  
            `costo_por_bolsa = costo_total ÷ total_unidades`
@@ -461,31 +503,31 @@ if page == "Calculadora Principal":
 
     # ----------------- CÁLCULOS -----------------
     costo_unitario_empaque = 2.0
-    empaques = total_unidades * costo_unitario_empaque
+    empaques = st.session_state.total_unidades * costo_unitario_empaque
 
     costo_total = (
-        carne_fresca + sal + corte_carne +
-        sueldo1 + trabajador_adicional +
-        luz + agua + fumigacion +
-        liquidos_limpieza + otro_liquido +
+        st.session_state.carne_fresca + st.session_state.sal + st.session_state.corte_carne +
+        st.session_state.sueldo1 + st.session_state.trabajador_adicional + st.session_state.empleado_ventas + st.session_state.redes_sociales +
+        st.session_state.luz + st.session_state.agua + st.session_state.fumigacion +
+        st.session_state.liquidos_limpieza + st.session_state.otro_liquido +
         empaques
     )
-    costo_por_bolsa = costo_total / total_unidades
+    costo_por_bolsa = costo_total / st.session_state.total_unidades
 
-    utilidad_por_bolsa = precio_venta - costo_por_bolsa
-    utilidad_total = utilidad_por_bolsa * total_unidades
-    utilidad_pct = (utilidad_por_bolsa / precio_venta * 100) if precio_venta else 0
+    utilidad_por_bolsa = st.session_state.precio_venta - costo_por_bolsa
+    utilidad_total = utilidad_por_bolsa * st.session_state.total_unidades
+    utilidad_pct = (utilidad_por_bolsa / st.session_state.precio_venta * 100) if st.session_state.precio_venta else 0
 
-    utilidad_por_bolsa_sug = precio_venta_sugerido - costo_por_bolsa
-    utilidad_total_sug = utilidad_por_bolsa_sug * total_unidades
-    utilidad_pct_sug = (utilidad_por_bolsa_sug / precio_venta_sugerido * 100) if precio_venta_sugerido else 0
+    utilidad_por_bolsa_sug = st.session_state.precio_venta_sugerido - costo_por_bolsa
+    utilidad_total_sug = utilidad_por_bolsa_sug * st.session_state.total_unidades
+    utilidad_pct_sug = (utilidad_por_bolsa_sug / st.session_state.precio_venta_sugerido * 100) if st.session_state.precio_venta_sugerido else 0
 
     # ----------------- MÉTRICAS -----------------
     st.success(f"### Costo total del mes: ${costo_total:,.2f}")
 
     col1, col2 = st.columns(2)
     col1.metric("Costo/bolsa", f"${costo_por_bolsa:,.2f}")
-    col2.metric("Bolsas producidas", f"{total_unidades}")
+    col2.metric("Bolsas producidas", f"{st.session_state.total_unidades}")
 
     st.markdown("---")
 
@@ -523,12 +565,12 @@ if page == "Calculadora Principal":
     # 1) Costos por rubro
     st.subheader("1. Costos por Rubro")
     labels = [
-        "Carne fresca","Sal","Corte","Sueldo princ.","Trabajador adic.",
+        "Carne fresca","Sal","Corte","Sueldo princ.","Trabajador adic.","Empleado ventas","Redes sociales",
         "Luz","Agua","Fumigación","Líquidos limp.","Otro líquido","Empaques"
     ]
     values = [
-        carne_fresca, sal, corte_carne, sueldo1, trabajador_adicional,
-        luz, agua, fumigacion, liquidos_limpieza, otro_liquido, empaques
+        st.session_state.carne_fresca, st.session_state.sal, st.session_state.corte_carne, st.session_state.sueldo1, st.session_state.trabajador_adicional, st.session_state.empleado_ventas, st.session_state.redes_sociales,
+        st.session_state.luz, st.session_state.agua, st.session_state.fumigacion, st.session_state.liquidos_limpieza, st.session_state.otro_liquido, empaques
     ]
     fig1, ax1 = plt.subplots(figsize=(6,3))
     ax1.barh(labels, values, color="#C41E3A")
@@ -569,7 +611,7 @@ if page == "Calculadora Principal":
         autopct=make_autopct(sizes_sug),
         colors=colors_sug,
         textprops={'fontsize': 8}
-    )
+    ) 
     ax3.set_title("Sugerido", fontsize=11)
     ax3.axis('equal')
     st.pyplot(fig3)
